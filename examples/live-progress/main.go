@@ -8,7 +8,6 @@ package main
 
 import (
 	"flag"
-	"log/slog"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -23,14 +22,10 @@ func main() {
 		step = 15 * time.Millisecond
 	}
 
-	out := evo.Init(evo.Config{
-		Title: "install dependencies",
-		Debug: evo.DebugConfig{Level: evo.LevelDebug},
-	})
-	log := slog.New(out.SlogHandler())
+	out := evo.Init(evo.Config{Title: "install dependencies"})
 
 	evo.Main(func() error {
-		return runLive(out, log, step)
+		return runLive(out, step)
 	})
 }
 
@@ -40,7 +35,7 @@ func main() {
 // idle until their turn (the "python" example). Each step below predeclares
 // its handle, then fully resolves before the next step's Phase/Progress/Bytes
 // call promotes it to Running.
-func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
+func runLive(out *evo.Output, step time.Duration) error {
 	const packageCount = 24
 	const totalBytes int64 = 18_000_000
 
@@ -50,35 +45,39 @@ func runLive(out *evo.Output, log *slog.Logger, step time.Duration) error {
 	download := jobs.Task("download")
 	verify := jobs.Task("verify")
 
-	for _, phase := range []string{"reading lockfile", "resolving graph", "planning fetch"} {
-		discover.Doing(phase)
-		time.Sleep(step * 2)
-	}
-	discover.Done("%d packages", packageCount)
-
-	for completed := 1; completed <= packageCount; completed++ {
-		scan.Progress(completed, packageCount)
-		time.Sleep(step)
-	}
-	scan.Done()
-
-	for completed := 1; completed <= packageCount; completed++ {
-		done := totalBytes * int64(completed) / int64(packageCount)
-		download.Bytes(done, totalBytes)
-		if completed == packageCount/2 {
-			log.Debug("download midpoint", "bytes", done, "of", totalBytes)
+	discover.Define(func() error {
+		for _, phase := range []string{"reading lockfile", "resolving graph", "planning fetch"} {
+			discover.Doing(phase)
+			time.Sleep(step * 2)
 		}
-		time.Sleep(step)
-	}
-	download.Done("%.1f MB", float64(totalBytes)/(1000*1000))
+		return nil
+	})
 
-	for _, phase := range []string{"checking signatures", "checksums", "quarantine scan"} {
-		verify.Doing(phase)
-		time.Sleep(step * 2)
-	}
-	verify.Done()
+	scan.Define(func() error {
+		for completed := 1; completed <= packageCount; completed++ {
+			scan.Progress(completed, packageCount)
+			time.Sleep(step)
+		}
+		return nil
+	})
 
-	log.Debug("dependency graph resolved", "packages", packageCount)
+	download.Define(func() error {
+		for completed := 1; completed <= packageCount; completed++ {
+			done := totalBytes * int64(completed) / int64(packageCount)
+			download.Bytes(done, totalBytes)
+			time.Sleep(step)
+		}
+		return nil
+	})
+
+	verify.Define(func() error {
+		for _, phase := range []string{"checking signatures", "checksums", "quarantine scan"} {
+			verify.Doing(phase)
+			time.Sleep(step * 2)
+		}
+		return nil
+	})
+
 	evo.Task("lockfile").Done()
 	evo.Task("registry").Done()
 	return nil

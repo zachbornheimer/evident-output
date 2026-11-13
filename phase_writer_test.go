@@ -2,10 +2,13 @@ package evo_test
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
+	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 func TestPhaseWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
@@ -28,6 +31,21 @@ func TestPhaseWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 	task.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPhaseWriter_UnterminatedWriteBecomesDoing(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	t.Cleanup(func() { _ = out.Close() })
+	task := out.Task("build")
+	w := task.Writer()
+
+	if _, err := w.Write([]byte("Compiling Foo.swift")); err != nil {
+		t.Fatal(err)
+	}
+	if got := task.Snapshot().Phase; got != "Compiling Foo.swift" {
+		t.Fatalf("unterminated child write = %q, want it as Doing so progress cannot freeze on the previous line", got)
 	}
 }
 
@@ -82,7 +100,7 @@ func TestPhaseWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 
 	// The task's Capture ring (get-or-create, same instance PhaseWriter fed)
 	// must carry the child output as failure evidence.
-	task.Fail("push failed", task.Evidence().DetailTail())
+	task.Fail("push failed", task.EvidenceForTest().DetailTail())
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -146,5 +164,66 @@ func TestPhaseWriter_SanitizesHostileLines(t *testing.T) {
 	}
 	if strings.Contains(primary.String(), "\x1b[31m") {
 		t.Fatalf("rendered output leaked raw CSI:\n%s", primary.String())
+	}
+}
+
+func countPhaseChanged(events []evo.Event) int {
+	n := 0
+	for _, e := range events {
+		if e.Type == "task.phase_changed" {
+			n++
+		}
+	}
+	return n
+}
+
+// TestWriter_IdenticalLiveOnlyPhaseIsNoOp proves that re-setting the same
+// live-only phase via Writer (complete line twice) does not emit another
+// task.phase_changed or force another live paint. A different line still
+// updates both.
+func TestWriter_IdenticalLiveOnlyPhaseIsNoOp(t *testing.T) {
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.Init(evo.Config{Isolated: true, Clock: evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("push")
+	w := task.Writer()
+
+	if _, err := w.Write([]byte("cloning repo\n")); err != nil {
+		t.Fatal(err)
+	}
+	if got := task.Snapshot().Phase; got != "cloning repo" {
+		t.Fatalf("phase after first write = %q", got)
+	}
+	framesAfterFirst := screen.LiveFrameCount()
+	eventsAfterFirst := countPhaseChanged(out.Events())
+	if framesAfterFirst < 1 {
+		t.Fatal("expected at least one live frame after first Writer line")
+	}
+	if eventsAfterFirst < 1 {
+		t.Fatal("expected at least one task.phase_changed after first Writer line")
+	}
+
+	if _, err := w.Write([]byte("cloning repo\n")); err != nil {
+		t.Fatal(err)
+	}
+	if got := screen.LiveFrameCount(); got != framesAfterFirst {
+		t.Fatalf("identical Writer phase re-painted: LiveFrameCount %d → %d", framesAfterFirst, got)
+	}
+	if got := countPhaseChanged(out.Events()); got != eventsAfterFirst {
+		t.Fatalf("identical Writer phase re-emitted task.phase_changed: %d → %d", eventsAfterFirst, got)
+	}
+
+	if _, err := w.Write([]byte("pushing feat/a\n")); err != nil {
+		t.Fatal(err)
+	}
+	if got := task.Snapshot().Phase; got != "pushing feat/a" {
+		t.Fatalf("phase after different write = %q", got)
+	}
+	if got := screen.LiveFrameCount(); got <= framesAfterFirst {
+		t.Fatalf("different Writer phase did not paint: LiveFrameCount stayed %d", got)
+	}
+	if got := countPhaseChanged(out.Events()); got <= eventsAfterFirst {
+		t.Fatalf("different Writer phase did not emit task.phase_changed: still %d", got)
 	}
 }
