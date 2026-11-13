@@ -88,6 +88,9 @@ func FitLiveRegion(text string, columns int) string {
 	if columns <= 0 {
 		columns = defaultWidth
 	}
+	if liveRegionFitsColumns(text, columns) {
+		return text
+	}
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
 		lines[i] = txt.TruncateVisible(line, columns)
@@ -95,7 +98,32 @@ func FitLiveRegion(text string, columns int) string {
 	return strings.Join(lines, "\n")
 }
 
+// liveRegionFitsColumns reports whether every line of text already fits
+// within columns, without allocating a Split slice.
+func liveRegionFitsColumns(text string, columns int) bool {
+	start := 0
+	for i := 0; i < len(text); i++ {
+		if text[i] != '\n' {
+			continue
+		}
+		if txt.VisibleCells(text[start:i]) > columns {
+			return false
+		}
+		start = i + 1
+	}
+	return txt.VisibleCells(text[start:]) <= columns
+}
+
 func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	fromEach, explicit := partitionEachChildren(col.Tasks)
+	if len(fromEach) > 0 {
+		writeLiveEachAggregate(b, col, fromEach, explicit, height, width, spin, color, now, profile)
+		return
+	}
+	if !col.Sequential && len(col.Tasks) == 1 && len(col.Collections) == 0 {
+		writeLiveTaskLine(b, col.Tasks[0], 0, width, spin, color, now, profile)
+		return
+	}
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == core.Done || t.State == core.Skipped {
@@ -153,6 +181,145 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	// render as an indented sub-header + its own children, one level per
 	// nesting depth — rendered into a scratch builder first so the same
 	// three-space child indent writeLiveTaskLine uses applies uniformly.
+	for _, child := range col.Collections {
+		var nested strings.Builder
+		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
+		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+			fmt.Fprintf(b, "   %s\n", line)
+		}
+	}
+}
+
+func partitionEachChildren(tasks []core.TaskSnapshot) (fromEach, explicit []core.TaskSnapshot) {
+	for _, t := range tasks {
+		if t.FromEach() {
+			fromEach = append(fromEach, t)
+		} else {
+			explicit = append(explicit, t)
+		}
+	}
+	return fromEach, explicit
+}
+
+// eachAttentionTTYMax is the TTY budget for homogeneous Each attention
+// children (Fail/Block/Cancel/warn/problems). Height still bounds the live
+// region and explicit Task children; Each Failures stay at one row + omission.
+const eachAttentionTTYMax = 1
+
+const eachFailedCountSeparator = " · "
+
+func eachChildNeedsSurface(t core.TaskSnapshot) bool {
+	if t.State == core.Failed || t.State == core.Blocked || t.State == core.Cancelled {
+		return true
+	}
+	return len(t.Warnings) > 0 || len(t.Problems) > 0
+}
+
+// selectEachAttentionChildren ranks Each children that need surface and
+// keeps at most max of them (omission count is the rest).
+func selectEachAttentionChildren(fromEach []core.TaskSnapshot, max int) (selected []core.TaskSnapshot, omitted int) {
+	var attention []core.TaskSnapshot
+	for _, t := range fromEach {
+		if eachChildNeedsSurface(t) {
+			attention = append(attention, t)
+		}
+	}
+	return selectLiveChildren(attention, max)
+}
+
+func eachProgressCounts(tasks []core.TaskSnapshot) (done, failed int) {
+	for _, t := range tasks {
+		switch t.State {
+		case core.Done, core.Skipped:
+			done++
+		case core.Failed:
+			failed++
+		}
+	}
+	return done, failed
+}
+
+func eachAggregateDetail(done, total, failed int, unresolved bool, current string) string {
+	detail := fmt.Sprintf("%d/%d", done, total)
+	if unresolved {
+		if current != "" {
+			detail += "  " + current
+		}
+		return detail
+	}
+	if failed > 0 {
+		return detail + eachFailedCountSeparator + fmt.Sprintf("%d failed", failed)
+	}
+	return detail
+}
+
+func writeEachOmission(b *strings.Builder, omitted int, color bool, profile txt.GlyphProfile) {
+	if omitted <= 0 {
+		return
+	}
+	fmt.Fprintf(b, "   %s  %d not shown\n", txt.Dim(txt.GlyphOverflow.Render(profile), color), omitted)
+}
+
+func currentEachItemName(fromEach []core.TaskSnapshot) string {
+	for _, t := range fromEach {
+		if t.State == core.Running {
+			return t.Name
+		}
+	}
+	for _, t := range fromEach {
+		if t.State == core.Pending {
+			return t.Name
+		}
+	}
+	return ""
+}
+
+func collectEachTaxonomy(fromEach []core.TaskSnapshot) (skipped, kept []core.TaxonomyRecord) {
+	for _, t := range fromEach {
+		skipped = append(skipped, t.Skipped...)
+		kept = append(kept, t.Kept...)
+	}
+	return skipped, kept
+}
+
+func writeLiveEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach, explicit []core.TaskSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	total := len(fromEach) + len(explicit)
+	done, failed := eachProgressCounts(col.Tasks)
+	unresolved := false
+	for _, t := range col.Tasks {
+		if t.State == core.Running || t.State == core.Pending {
+			unresolved = true
+			break
+		}
+	}
+	headerState := col.State
+	glyph := TaskGlyph(headerState, profile)
+	if unresolved {
+		headerState = core.Running
+		glyph = spin
+	}
+	detail := eachAggregateDetail(done, total, failed, unresolved, currentEachItemName(fromEach))
+	unit := DisplayUnit{
+		Glyph:  txt.StyleGlyph(glyph, StateColor(headerState), color),
+		Name:   col.Name,
+		Detail: detail,
+	}
+	if unresolved {
+		unit.Elapsed = heartbeatSuffix(now, earliestLiveFirstSeen(col))
+		if unit.Elapsed != "" {
+			unit.Detail += " " + strings.TrimSpace(unit.Elapsed)
+		}
+	}
+	b.WriteString(unit.Render(""))
+	b.WriteByte('\n')
+	selected, omitted := selectEachAttentionChildren(fromEach, eachAttentionTTYMax)
+	for _, t := range selected {
+		writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
+	}
+	writeEachOmission(b, omitted, color, profile)
+	for _, t := range explicit {
+		writeLiveTaskLine(b, t, 1, width, spin, color, now, profile)
+	}
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
@@ -325,10 +492,9 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 		}
 		unit.Elapsed = heartbeatSuffix(now, activitySince(t))
 		if t.Phase != "" {
-			// Default intensity: the current phase is diagnostic evidence
-			// while progress stalls, not a subordinate row (evo-rec.md
-			// "Color and txt.Style demotions").
-			detail = detail + "  " + t.Phase + unit.Elapsed
+			// Muted current: N/M is the diagnostic; the current-name/Phase
+			// slot is subordinate (evo-rec.md DURING `:. name  N/M  muted-current`).
+			detail = detail + "  " + txt.Dim(t.Phase, color) + unit.Elapsed
 		} else {
 			// P5: no Phase text yet — still age honestly past elapsedAfter.
 			detail += unit.Elapsed
@@ -344,9 +510,9 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 			phase = "working…"
 		}
 		unit.Elapsed = heartbeatSuffix(now, activitySince(t))
-		unit.Detail = phase + unit.Elapsed
+		unit.Detail = txt.Dim(phase, color) + unit.Elapsed
 	case t.State == core.Running && t.Phase != "":
-		unit.Detail = t.Phase
+		unit.Detail = txt.Dim(t.Phase, color)
 	case t.State == core.Pending:
 		// A core.Pending row left on screen past elapsedAfter is exactly as
 		// static as a stalled core.Running one — same heartbeat, txt.Dim (subordinate:
