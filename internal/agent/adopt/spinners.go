@@ -10,5 +10,5 @@ var spinnerImports = map[string]string{
 	"github.com/vbauerster/mpb/v8":      "evo.Task(name).Each(items) owns concurrent progress rendering — delete the manual multi-bar container.",
 	"github.com/cheggaaa/pb":            "evo.Task(name).Each(items) (or Progress) owns absolute progress rendering — delete the manual progress bar.",
 	"gopkg.in/cheggaaa/pb.v1":           "evo.Task(name).Each(items) (or Progress) owns absolute progress rendering — delete the manual progress bar.",
-	"github.com/pterm/pterm":            "evo.Task/Sequence/DisplayGroup own spinners, progress, and hierarchical output — inventory which pterm widgets are in play before replacing.",
+	"github.com/pterm/pterm":            "evo.Task/Sequence/Group own spinners, progress, and hierarchical output — inventory which pterm widgets are in play before replacing.",
 }

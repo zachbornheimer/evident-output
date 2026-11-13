@@ -3,6 +3,7 @@ package goldens_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
@@ -18,14 +19,25 @@ import (
 // Phase() calls force a repaint regardless (used by Each internally), which
 // is why simple single-call Phase-driven probes didn't need this — but a
 // bare Progress/Bytes call does.
-func newLiveScreenOutput(screen *testkit.Screen, opts ...evo.Option) *evo.Output {
-	base := []evo.Option{
-		evo.Terminal(screen),
-		evo.VisibilityDelay(0),
-		evo.MaxFrameRate(1_000_000),
-		evo.NoColor(),
+func newLiveScreenOutput(screen *testkit.Screen) *evo.Output {
+	return newLiveScreenOutputCfg(screen, evo.Config{})
+}
+
+func newLiveScreenOutputCfg(screen *testkit.Screen, extra evo.Config) *evo.Output {
+	if extra.Terminal == nil {
+		extra.Terminal = screen
 	}
-	return evo.Init(evo.Config{Isolated: true, Options: append(base, opts...)})
+	if extra.VisibilityDelay == nil {
+		extra.VisibilityDelay = new(time.Duration)
+	}
+	if extra.MaxFrameRate == 0 {
+		extra.MaxFrameRate = 1_000_000
+	}
+	if extra.Color == 0 {
+		extra.Color = evo.ColorNever
+	}
+	extra.Isolated = true
+	return evo.Init(extra)
 }
 
 // TestSpecP1_LiveFrame_Step1 covers evo-rec.md Problem 1's step1 block via
@@ -58,7 +70,7 @@ func TestSpecP1_LiveFrame_Step1(t *testing.T) {
 		names[i] = "feat/x" + string(rune('a'+i%26))
 	}
 	names[0] = "feat/old-billing"
-	branches := out.Task("branches")
+	branches := out.Group("branches")
 	for range branches.Each(names) {
 		break
 	}
@@ -87,8 +99,8 @@ func TestSpecP1_LiveFrame_Step2(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("branches").Done("14 deleted")
-	worktrees := out.Task("worktrees")
-	out.Task("remotes") // declared, not yet started — renders "○ remotes"
+	worktrees := out.Group("worktrees")
+	out.Task("remotes") // declared Running — spinner, not a pending ○
 	for range worktrees.Each([]string{"../.worktrees/app-sah-1", "../.worktrees/app-sah-2", "../.worktrees/app-sah-3"}) {
 		break
 	}
@@ -108,8 +120,8 @@ func TestSpecP1_LiveFrame_Step2(t *testing.T) {
 	if !strings.Contains(lines[0], "worktrees") || !strings.Contains(lines[0], "../.worktrees/app-sah-1") {
 		t.Fatalf("line 1 want Running worktrees with current name, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "remotes") {
-		t.Fatalf("line 2 want pending remotes with ○, got %q", lines[1])
+	if !strings.Contains(lines[1], "remotes") || strings.Contains(lines[1], "○") {
+		t.Fatalf("line 2 want running remotes (spinner, not ○), got %q", lines[1])
 	}
 }
 
@@ -136,8 +148,8 @@ func TestSpecP1_LiveFrame_Indeterminate(t *testing.T) {
 	if !strings.Contains(lines[0], "branches") || !strings.Contains(lines[0], "classifying…") {
 		t.Fatalf("line 1 want indeterminate phase, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "worktrees") {
-		t.Fatalf("line 2 want pending ○, got %q", lines[1])
+	if !strings.Contains(lines[1], "worktrees") || strings.Contains(lines[1], "○") {
+		t.Fatalf("line 2 want running worktrees (spinner, not ○), got %q", lines[1])
 	}
 }
 
@@ -480,8 +492,8 @@ func TestSpecP9_LiveFrame_Step2(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("want 2 flat task lines (resolved scan left the ticker), got %d:\n%s", len(lines), got)
 	}
-	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "install") {
-		t.Fatalf("line 2 want pending install, got %q", lines[1])
+	if !strings.Contains(lines[1], "install") || strings.Contains(lines[1], "○") {
+		t.Fatalf("line 2 want running install (spinner, not ○), got %q", lines[1])
 	}
 }
 
@@ -526,7 +538,7 @@ func TestSpecP11_LiveFrame_Step1(t *testing.T) {
 func TestSpecP25_LiveFrame_ASCIISpinner(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutput(screen, evo.Glyphs(evo.GlyphsASCII))
+	out := newLiveScreenOutputCfg(screen, evo.Config{Glyphs: evo.GlyphsASCII})
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")

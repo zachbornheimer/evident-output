@@ -30,7 +30,7 @@ func TestTruncateNames_UnicodeOverflow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := evo.TruncateNames(tt.names, tt.visible, evo.GlyphsUnicode)
+			got := evo.TruncateNames(tt.names, tt.visible)
 			if got != tt.want {
 				t.Fatalf("TruncateNames(%v, %d) = %q, want %q", tt.names, tt.visible, got, tt.want)
 			}
@@ -57,8 +57,8 @@ func TestTruncateNames_TwoArgCallDefaultsToUnicode(t *testing.T) {
 // semantics, degraded glyph only (GLYPH-001).
 func TestTruncateNames_ASCIIOverflow(t *testing.T) {
 	t.Parallel()
-	got := evo.TruncateNames([]string{"a", "b", "c", "d"}, 3, evo.GlyphsASCII)
-	want := "a, b, c ... +1 more"
+	got := evo.TruncateNames([]string{"a", "b", "c", "d"}, 3)
+	want := "a, b, c … +1 more"
 	if got != want {
 		t.Fatalf("TruncateNames(ASCII) = %q, want %q", got, want)
 	}

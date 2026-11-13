@@ -14,9 +14,9 @@ import (
 func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
-	_ = branches.Delete("local branches", nil, evo.Affected(12))
+	branches.Delete("local branches", func() error { return nil }, evo.Affected(12))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -42,9 +42,9 @@ func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	_ = branches.Delete("local branches", nil, evo.Affected(12))
+	branches.Delete("local branches", func() error { return nil }, evo.Affected(12))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -67,10 +67,10 @@ func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 // therefore appears in the snapshot and FinalPlain.
 func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	_ = branches.Delete("local branches", nil, evo.Affected(3))
+	branches.Delete("local branches", func() error { return nil }, evo.Affected(3))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -101,11 +101,11 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 // task accumulate into one section instead of one per call.
 func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	_ = branches.Delete("local branches", nil, evo.Affected(3))
-	_ = branches.Update("tip", nil, evo.Affected(1))
+	branches.Delete("local branches", func() error { return nil }, evo.Affected(3))
+	branches.Update("tip", func() error { return nil }, evo.Affected(1))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 		t.Run(imperative, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("t"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+			out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "t", Color: evo.ColorNever, Plain: true})
 			subject := out.Task("subject")
 			subject.RecordName(imperative, "object")
 			subject.Done()
@@ -155,12 +155,12 @@ func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 // the "resolved tasks record misuse, never panic" contract.
 func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("t"), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "t", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("branches")
 	task.Done()
 
-	_ = task.Delete("thing", nil, evo.Affected(1))
+	task.Delete("thing", func() error { return nil }, evo.Affected(1))
 
 	if out.Err() == nil {
 		t.Fatal("want recorded misuse after mutating a resolved task")
@@ -187,9 +187,9 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 func TestWriteEffects_ZeroAffectedMutationVerbRendersNoSection(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "clean", Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
-	_ = branches.Delete("local branches", nil, evo.Affected(0))
+	branches.Delete("local branches", func() error { return nil }, evo.Affected(0))
 	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

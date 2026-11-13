@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
@@ -17,12 +18,12 @@ import (
 // most ("how far did it get before breaking").
 func TestFailedTask_WithProgressRendersCountOnFailureRow(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	task := out.Task("install")
+	g := out.Group("install")
 	packages := []string{"alpha", "bravo", "charlie"}
-	for pkg := range task.Each(packages) {
+	for pkg, task := range g.Each(packages) {
 		if pkg == "bravo" {
 			task.Fail("install bravo")
 			break
@@ -50,17 +51,12 @@ func TestFailedTask_LiveRowRendersCountAtSamePosition(t *testing.T) {
 	)
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Options: []evo.Option{
-			evo.Terminal(screen),
-			evo.VisibilityDelay(0),
-			evo.NoColor(),
-		},
-	})
+		Terminal: screen, VisibilityDelay: new(time.Duration), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	task := out.Task("install")
+	g := out.Group("install")
 	packages := []string{"alpha", "bravo", "charlie"}
-	for pkg := range task.Each(packages) {
+	for pkg, task := range g.Each(packages) {
 		if pkg == "bravo" {
 			task.Fail("install bravo")
 			break

@@ -24,7 +24,7 @@ func (f *fakeSinkTerminal) WriteFinal(string)   {}
 func (f *fakeSinkTerminal) Sink() io.Writer     { return f.w }
 
 // TestConfigToOptions_CallerTerminalSharingPrimaryIsDetected proves
-// configToOptions DETECTS a caller-supplied Terminal(...) (Config.Terminal
+// configToOptions DETECTS a caller-supplied withTerminal(...) (Config.Terminal
 // or the Options path) sharing a stream with primary via the driver's own
 // Sink(), instead of only knowing that for the one construction path that
 // builds both the ANSI driver and primary itself (X3). Before the fix, this
