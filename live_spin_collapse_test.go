@@ -13,7 +13,7 @@ import (
 var unicodeSpinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 func lineFor(live, name string) string {
-	for _, line := range strings.Split(live, "\n") {
+	for line := range strings.SplitSeq(live, "\n") {
 		if strings.Contains(line, name) {
 			return line
 		}
@@ -121,7 +121,7 @@ func TestLive_FastBindSpinnerVisibleOnWallClock(t *testing.T) {
 
 func nonemptyLines(s string) []string {
 	var out []string
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		if strings.TrimSpace(line) != "" {
 			out = append(out, line)
 		}

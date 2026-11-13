@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -235,7 +236,7 @@ func TestUpdateNeeded_FalseWhenVersionIsDevOnlyDifference(t *testing.T) {
 
 func TestUpdateCLI_BinaryNeitherFlagDoesNotServe(t *testing.T) {
 	bin := buildMCP(t)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		cmd := exec.Command(bin, "update")
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
@@ -265,12 +266,7 @@ func captureUpdate(t *testing.T, args []string) (stderr string, code int) {
 }
 
 func containsArg(args []string, want string) bool {
-	for _, a := range args {
-		if a == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, want)
 }
 
 func assertNoCopyArgs(t *testing.T, args []string) {
