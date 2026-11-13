@@ -416,17 +416,18 @@ go func() { <-c; task.Cancel("interrupted") }()
 			ID:        "TERM-015",
 			Category:  "TERM",
 			Severity:  "warning",
-			Invariant: "tty-passthrough child processes run inside out.Suspend",
-			Why:       "A child that paints its own UI on the shared terminal collides with the parent's live spinner; no in-process fix helps once the child owns stdout/stderr directly (evo-rec.md \"#7b\").",
+			Invariant: "child processes run through Task.Run or Writer, never inherited stdout",
+			Why:       "A child that inherits os.Stdout paints on the same TTY as the live row. Capture it so the spinner keeps moving and the child's lines become Doing. Turning the spinner off is not a product state.",
 			BadCode: `cmd := exec.Command("zq", "setup")
 cmd.Stdout = os.Stdout
 cmd.Stderr = os.Stderr
 cmd.Run()`,
-			GoodCode: `cmd := exec.Command("zq", "setup")
-cmd.Stdout = os.Stdout
-cmd.Stderr = os.Stderr
-out.Suspend(func() error { return cmd.Run() })`,
-			Remediation:     "Wrap tty-passthrough child execution in out.Suspend(fn); captured children (Writer/Capture) don't need it",
+			GoodCode: `cmd := exec.Command("go", "build", "./...")
+if err := task.Run(cmd); err != nil {
+    return task.Failf("build failed: %w", err)
+}
+task.Done()`,
+			Remediation:     "Use Task.Run (or cmd.Stdout = task.Writer()); do not inherit os.Stdout and do not clear the live region",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-015"},
 			Since:           "0.6.0",
@@ -1057,6 +1058,38 @@ t = out.Task("build")`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-038"},
 			Since:           "0.4.1",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "FP-005",
+			Category:  "FP",
+			Severity:  "warning",
+			Invariant: "a Task that will complete is declared, shown running, then resolved — never created already Done",
+			Why:       "A tool row that first appears as ✓ looks like a lie: the work happened off-screen. Declare the Task, call Doing while resolving, then Done.",
+			BadCode:   `out.Task("go@1.25.11").Done(path)`,
+			GoodCode: `t := out.Task("go@1.25.11")
+t.Doing("resolving %s", path)
+t.Done(path)`,
+			Remediation:     "Call Doing(...) before Done so the live row spins while the work runs",
+			RelatedGuidance: []string{"first-paint", "tasks"},
+			VerificationIDs: []string{"FP-005"},
+			Since:           "0.4.7",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "API-039",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a DisplayGroup with exactly one child is a lone Task",
+			Why:       "A 1-child group paints a 0/1 complete header over a single row and steals the command name. Use Task, or add more children.",
+			BadCode: `jobs := out.DisplayGroup("run")
+jobs.Task("install:fresh-start")`,
+			GoodCode: `t := out.Task("install:fresh-start")
+t.Doing("running install:fresh-start")`,
+			Remediation:     "Replace the 1-child DisplayGroup with a lone Task",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-039"},
+			Since:           "0.4.7",
 			Certainty:       "deterministic",
 		},
 		{

@@ -217,14 +217,6 @@ func TestAPI011_CobraNotRequired(t *testing.T) {
 	_ = out.Finish()
 }
 
-func TestAPI020_SuspendExternal(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
-	t.Cleanup(func() { _ = out.Close() })
-	if err := out.Suspend(func() error { return nil }); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestAPI022_DiscoverabilityNames(t *testing.T) {
 	// User discovers Item/Task/Tasks and can implement three parallel facts without config.
 	var buf bytes.Buffer
@@ -307,13 +299,6 @@ func TestLOG013_DebugWithJSONStdout(t *testing.T) {
 	if !strings.Contains(string(j), "schema_version") {
 		t.Fatal(string(j))
 	}
-	_ = out.Close()
-}
-
-func TestOUT019_HostWritesWhileActiveDocumented(t *testing.T) {
-	// Suspend is the cooperative path
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
-	_ = out.Suspend(func() error { return nil })
 	_ = out.Close()
 }
 

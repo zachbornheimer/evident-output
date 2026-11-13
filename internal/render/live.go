@@ -88,6 +88,9 @@ func FitLiveRegion(text string, columns int) string {
 	if columns <= 0 {
 		columns = defaultWidth
 	}
+	if liveRegionFitsColumns(text, columns) {
+		return text
+	}
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
 		lines[i] = txt.TruncateVisible(line, columns)
@@ -95,7 +98,27 @@ func FitLiveRegion(text string, columns int) string {
 	return strings.Join(lines, "\n")
 }
 
+// liveRegionFitsColumns reports whether every line of text already fits
+// within columns, without allocating a Split slice.
+func liveRegionFitsColumns(text string, columns int) bool {
+	start := 0
+	for i := 0; i < len(text); i++ {
+		if text[i] != '\n' {
+			continue
+		}
+		if txt.VisibleCells(text[start:i]) > columns {
+			return false
+		}
+		start = i + 1
+	}
+	return txt.VisibleCells(text[start:]) <= columns
+}
+
 func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	if !col.Sequential && len(col.Tasks) == 1 && len(col.Collections) == 0 {
+		writeLiveTaskLine(b, col.Tasks[0], 0, width, spin, color, now, profile)
+		return
+	}
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == core.Done || t.State == core.Skipped {

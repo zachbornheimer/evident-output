@@ -20,8 +20,9 @@ import (
 // (filepath.Base(cmd.Path) or cmd.Args[0]) so a live view shows what's
 // running before the child ever writes a line.
 //
-// Run does not touch cmd.Stdin and does not Suspend — a subprocess that
-// needs the terminal (a prompt, a pager) stays on the explicit Suspend path.
+// Run does not touch cmd.Stdin. A child that must own the TTY (an editor)
+// still runs through Run with Stdin left as the caller set it; do not
+// clear the live region around it.
 // A context baked into cmd via exec.CommandContext still governs
 // cancellation exactly as it would for a bare cmd.Run(); Run adds no
 // context handling of its own.

@@ -32,6 +32,11 @@ var (
 // it never touches package state (parallel tests, embedders holding their
 // own *Output).
 //
+// When Options is empty, Init fills still-zero Config fields from EVO_OUTPUT,
+// EVO_COLOR, EVO_VERBOSE, EVO_DEBUG, and NO_COLOR before TTY inference.
+// Explicit Config values win over env; env wins over TTY. Options skip that
+// fill — they win outright.
+//
 // Config.Options is the advanced raw-Option escape hatch for tests and
 // specialized embedding; when set, ordinary Config fields (besides Title,
 // DryRun, and Subject) are ignored. Options installs as the package-level
@@ -43,6 +48,9 @@ var (
 // that silently drops DryRun/Title/writer wiring).
 func Init(configs ...Config) *Output {
 	cfg := resolveInitConfig(configs)
+	if len(cfg.Options) == 0 {
+		cfg = applyEnv(cfg)
+	}
 	if len(cfg.Options) > 0 {
 		// Advanced/testing escape hatch: build directly from raw Options,
 		// bypassing Config's ordinary stream/TTY/color inference entirely.
@@ -112,7 +120,7 @@ func Default() *Output {
 	defaultMu.Lock()
 	defer defaultMu.Unlock()
 	if defaultOut == nil {
-		defaultOut = newFromConfig(resolveConfig(Config{}))
+		defaultOut = newFromConfig(resolveConfig(applyEnv(Config{})))
 	}
 	return defaultOut
 }

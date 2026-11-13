@@ -207,15 +207,6 @@ func TestTERM023_SplitStreamsNoCrossCursor(t *testing.T) {
 	}
 }
 
-func TestTERM016_SuspendCallbackErrorPropagates(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard), evo.Plain()}})
-	t.Cleanup(func() { _ = out.Close() })
-	err := out.Suspend(func() error { return io.EOF })
-	if err != io.EOF {
-		t.Fatal(err)
-	}
-}
-
 func TestPORT010_GoVersionBuilds(t *testing.T) {
 	// This test running on Go 1.25+ is the proof.
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})

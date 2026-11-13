@@ -192,7 +192,9 @@ func f() {
   // example: tasks.Map() is not real — do not flag this comment either
   slug := strings.Map(func(r rune) rune { return r }, "ABC")
   out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("x")}})
-  out.Task(slug).Done()
+  t := out.Task(slug)
+  t.Doing("resolving %s", slug)
+  t.Done()
   _ = out.Finish()
 }
 `
@@ -404,28 +406,30 @@ func run(out *evo.Output) error {
 		}
 	}
 	if !found {
-		t.Fatalf("expected TERM-015 on tty passthrough without Suspend: %+v", res.Findings)
+		t.Fatalf("expected TERM-015 on tty passthrough: %+v", res.Findings)
 	}
 }
 
-func TestTERM015_NoFalsePositiveWithSuspend(t *testing.T) {
+func TestTERM015_NoFalsePositiveWithTaskRun(t *testing.T) {
 	good := `package p
 import (
-  "os"
   "os/exec"
   evo "github.com/zachbornheimer/evident-output"
 )
 func run(out *evo.Output) error {
-  cmd := exec.Command("zq", "setup")
-  cmd.Stdout = os.Stdout
-  cmd.Stderr = os.Stderr
-  return out.Suspend(func() error { return cmd.Run() })
+  task := out.Task("build")
+  cmd := exec.Command("go", "build", "./...")
+  if err := task.Run(cmd); err != nil {
+    return task.Failf("build failed: %w", err)
+  }
+  task.Done()
+  return nil
 }
 `
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "TERM-015" {
-			t.Fatalf("false positive TERM-015 when Suspend wraps the child: %+v", res.Findings)
+			t.Fatalf("false positive TERM-015 when Task.Run captures the child: %+v", res.Findings)
 		}
 	}
 }
@@ -1171,6 +1175,9 @@ func run(out *evo.Output) error {
   _, _ = reader.ReadString('\n')
 
   out.Task("working tree").Block("dirty")
+  out.Task("go@1.25.11").Done("/bin/go")
+  jobs := out.DisplayGroup("run")
+  jobs.Task("install:fresh-start")
   return errors.New("dirty")
 }
 `))
@@ -1249,6 +1256,9 @@ func run(out *evo.Output, svc services, task *evo.TaskHandle, done, total int) e
   _, _ = reader.ReadString('\n')
 
   out.Task("working tree").Block("dirty")
+  out.Task("go@1.25.11").Done("/bin/go")
+  jobs := out.DisplayGroup("run")
+  jobs.Task("install:fresh-start")
   return errors.New("dirty")
 }
 `

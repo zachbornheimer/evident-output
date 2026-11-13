@@ -61,13 +61,3 @@ func TestTERM012_SmallHeightBudget(t *testing.T) {
 		t.Log(got)
 	}
 }
-
-func TestTERM017_NestedSuspendRejectedOrSafe(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(bytes.NewBuffer(nil)), evo.Plain()}})
-	t.Cleanup(func() { _ = out.Close() })
-	err := out.Suspend(func() error {
-		return out.Suspend(func() error { return nil })
-	})
-	// v1 may allow or reject; must not panic
-	_ = err
-}
