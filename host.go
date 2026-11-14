@@ -59,7 +59,7 @@ func (e runHost) CheckOpen() error {
 
 func (e runHost) RecordMisuse(err error) { e.out.recordMisuse(err) }
 
-// NoteManifestWarning surfaces a safe cache-miss warning (spec §11.3) as a run-scoped Fact, never an error.
+// NoteManifestWarning surfaces a safe cache-miss warning as a run-scoped Fact, never an error.
 func (e runHost) NoteManifestWarning(warning error) { e.out.Fact("manifest", warning.Error()) }
 
 // ShowWaiting makes id's row read "waiting for <label>" and returns the restore function.

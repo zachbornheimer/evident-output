@@ -45,7 +45,9 @@ const (
 	EventOperationFinished     = "operation.finished"
 	EventDefinitionFinished    = "definition.finished"
 	EventTaskFinished          = "task.finished"
-	EventRunFinished           = "run.finished"
+	// EventRunMisuse carries one misuse the run recorded, before run.finished.
+	EventRunMisuse   = "run.misuse"
+	EventRunFinished = "run.finished"
 	// EventResultWritten carries one write to Run.ResultWriter as payload "text", or "base64" when the bytes are not valid UTF-8.
 	EventResultWritten = "result.written"
 )

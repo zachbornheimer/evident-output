@@ -12,6 +12,7 @@ type Recorder struct {
 	mu              sync.Mutex
 	first           error
 	all             []error
+	entries         []Entry
 	seen            map[string]struct{}
 	subject         string
 	rejectedSummary string
@@ -55,6 +56,22 @@ func (r *Recorder) Note(err error, subject, rejectedSummary string) {
 	}
 	r.seen[text] = struct{}{}
 	r.all = append(r.all, err)
+	r.entries = append(r.entries, Entry{Err: err, Subject: subject, Remedy: hintFor(err, subject, rejectedSummary)})
+}
+
+// Entry is one distinct misuse as the run recorded it: the error, the entity it happened on (empty when none),
+// and the corrective sentence for it.
+type Entry struct {
+	Err     error
+	Subject string
+	Remedy  string
+}
+
+// Entries is every distinct misuse recorded, in record order.
+func (r *Recorder) Entries() []Entry {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]Entry(nil), r.entries...)
 }
 
 // All is every distinct misuse recorded, joined in record order, nil when

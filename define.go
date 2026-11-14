@@ -14,6 +14,7 @@ type DefineOption func(*defineConfig)
 
 type defineConfig struct{ cleanStopSignals []os.Signal }
 
+// CleanStop names the signals that end a Task cleanly; see CONTRACT.md section signals.
 func CleanStop(signals ...os.Signal) DefineOption {
 	return func(c *defineConfig) { c.cleanStopSignals = append(c.cleanStopSignals, signals...) }
 }
@@ -66,6 +67,10 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 	for _, opt := range opts {
 		opt(&cfg)
 	}
+	if len(cfg.cleanStopSignals) > 0 && o.hostOwnsSignals {
+		o.refuseDefine(st, fmt.Errorf("%w: CleanStop on task %q under Execute, which owns no signals", ErrInvalidConfig, st.name))
+		return t
+	}
 	graph.Define(o.graph, st.node, o.definition(st, o.cleanStops.Wrap(cfg.cleanStopSignals, fn)))
 	return t
 }
@@ -73,10 +78,15 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 // refuseNilDefine records the refusal of Define(nil) on st and settles its row NotStarted: a Task with no
 // callback can never run, so it is work the refusal took away, not a forgotten terminal verb.
 func (r *Run) refuseNilDefine(st *taskState) {
+	r.refuseDefine(st, fmt.Errorf("%w: nil Define callback for task %q", ErrInvalidConfig, st.name))
+}
+
+// refuseDefine marks st refused and records why.
+func (r *Run) refuseDefine(st *taskState, why error) {
 	r.mu.Lock()
 	st.refused = true
 	r.mu.Unlock()
-	r.recordMisuseFor(st.name, fmt.Errorf("%w: nil Define callback for task %q", ErrInvalidConfig, st.name))
+	r.recordMisuseFor(st.name, why)
 }
 
 // definition is st's Define with fn as its callback; freshness checks it.

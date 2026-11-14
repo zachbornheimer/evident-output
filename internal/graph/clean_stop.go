@@ -13,6 +13,10 @@ import (
 // named arrives (evo.CleanStop): a long-running server stopped by SIGTERM
 // did its work. The zero value is ready to use.
 type CleanStops struct {
+	// Subscribe delivers the named signals on the returned channel until release is called. Nil
+	// means the host owns signals and nothing is subscribed.
+	Subscribe func(signals []process.Signal) (arrived <-chan process.Signal, release func())
+
 	mu      sync.Mutex
 	running map[*cleanStop]struct{}
 }
@@ -37,6 +41,7 @@ func (r *CleanStops) Wrap(signals []process.Signal, fn func(context.Context) err
 		c := &cleanStop{signals: signals, cancel: cancel}
 		r.track(c, true)
 		defer r.track(c, false)
+		defer r.listen(signals)()
 		err := fn(taskCtx)
 		if c.stopped.Load() {
 			return nil
@@ -73,4 +78,30 @@ func (r *CleanStops) track(c *cleanStop, running bool) {
 		r.running = make(map[*cleanStop]struct{})
 	}
 	r.running[c] = struct{}{}
+}
+
+// listen subscribes signals for the callback that names them and returns the function that ends it:
+// the signal is unsubscribed and its forwarder gone before the callback's result is read.
+func (r *CleanStops) listen(signals []process.Signal) (end func()) {
+	if r.Subscribe == nil {
+		return func() {}
+	}
+	arrived, release := r.Subscribe(signals)
+	stop, stopped := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(stopped)
+		for {
+			select {
+			case sig := <-arrived:
+				r.Stop(sig)
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return func() {
+		release()
+		close(stop)
+		<-stopped
+	}
 }

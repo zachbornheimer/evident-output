@@ -18,6 +18,7 @@ type configKeyMove struct{ group, field string }
 var configKeyMoves = map[string]configKeyMove{
 	"Stdin": {"Facades", "Stdin"}, "Stdout": {"Facades", "Stdout"}, "Stderr": {"Facades", "Stderr"},
 	"Clock": {"Facades", "Clock"}, "Redactor": {"Facades", "Redactor"}, "Terminal": {"Facades", "Terminal"},
+	"ProcessRunner": {"Facades", "Process"}, "FileFS": {"Facades", "FS"},
 	"StateDir": {"State", "Dir"}, "AppID": {"State", "AppID"},
 }
 
@@ -45,6 +46,17 @@ var configKeyGone = map[string]struct{ message, guidance string }{
 		"Main and Execute install no package-level default, so every Run is isolated",
 		"remove the field; nothing replaces it",
 	},
+	"Result": {
+		"the data payload is Run.ResultWriter(), which writes to Config.Facades.Stdout",
+		"remove the field and write the payload to r.ResultWriter() in run",
+	},
+	"Strict":          {"misuse is always recorded in Result with a remedy", "remove the field; nothing replaces it"},
+	"Width":           {"Evo picks the presentation from Output and Terminal", "remove the field; nothing replaces it"},
+	"Glyphs":          {"Evo picks the presentation from Output and Terminal", "remove the field; nothing replaces it"},
+	"VisibilityDelay": {"Evo picks the presentation from Output and Terminal", "remove the field; nothing replaces it"},
+	"MaxFrameRate":    {"the bounds are fixed", "remove the field; nothing replaces it"},
+	"MaxEntities":     {"the bounds are fixed", "remove the field; nothing replaces it"},
+	"MaxEvents":       {"the bounds are fixed", "remove the field; nothing replaces it"},
 }
 
 // configKeys is the Config literal's fields by key.
@@ -102,6 +114,8 @@ func (d *removedTwoZeroDetector) reportConfigFields(cl *ast.CompositeLit) {
 		switch move, isMove := configKeyMoves[key]; {
 		case configKeyRenames[key] != "" && key != "Title" && keys[configKeyRenames[key]] == nil:
 			d.reportConfigField(kv, key, "the field is Config."+configKeyRenames[key], "replace "+old+" with "+configKeyRenames[key]+": "+d.nodeSrc(kv.Value))
+		case configTypeChanges[key].field != "":
+			d.reportTypeChangedConfigField(kv, key)
 		case isMove && moved[move.group] == 1:
 			d.reportConfigField(kv, key, "the field is Config."+move.group+"."+move.field,
 				"replace "+old+" with "+move.group+": "+d.pkg+"."+move.group+"{"+move.field+": "+d.nodeSrc(kv.Value)+"}")
@@ -129,4 +143,20 @@ func (d *removedTwoZeroDetector) reportDroppedConfigFields(cl *ast.CompositeLit)
 func (d *removedTwoZeroDetector) reportConfigField(kv *ast.KeyValueExpr, key, instead, suggestion string) {
 	d.report(kv, "Config."+key+" was removed in 2.0; "+instead, suggestion)
 	d.cover(kv)
+}
+
+// reportTypeChangedConfigField words a Verbosity, Format, Projection or Plain
+// field: a rewrite when its value is a constant the guide maps, else guidance.
+func (d *removedTwoZeroDetector) reportTypeChangedConfigField(kv *ast.KeyValueExpr, key string) {
+	change := configTypeChanges[key]
+	instead := "the field is Config." + change.field
+	field, present, ok := d.configTypeChangeField(key, kv.Value)
+	switch {
+	case !ok:
+		d.reportConfigField(kv, key, instead, change.guidance)
+	case present:
+		d.reportConfigField(kv, key, instead, "replace "+d.nodeSrc(kv)+" with "+field)
+	default:
+		d.reportConfigField(kv, key, instead, "delete "+d.nodeSrc(kv)+"; the zero value of Config."+change.field+" is what it set")
+	}
 }

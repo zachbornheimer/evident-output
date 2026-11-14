@@ -152,7 +152,7 @@ func (r *Run) observeFileBasis(ctx context.Context, op fileOperation) ([]freshne
 	}
 	r.host.NoteManifestWarning(store.Warning())
 
-	basis, observeErr := r.ObserveBasis(ctx, op.spec.Basis)
+	basis, observeErr := r.resolvedBasisRecords(ctx, op.spec.Basis)
 	if observeErr != nil {
 		return nil, fmt.Errorf("evo: File %q: %w", op.path, observeErr)
 	}

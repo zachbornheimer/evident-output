@@ -1,10 +1,11 @@
 # Layout
 
-Every section of `CONTRACT.md` owns one root file, one internal package and
-one guard. `layout_test.go` fails when a tracked file lives outside this
+Each section of `CONTRACT.md` owns the root files and internal package
+listed below; some own several root files and some own none. `layout_test.go` fails when a tracked file lives outside this
 list or a listed path is missing. A bare path is one file. A path ending in
 `/` is a directory that must exist and may hold anything beneath it.
-`*_test.go` and `testdata/` are allowed beside any Go file.
+`*_test.go` files are allowed at the repository root only, and a top-level
+`testdata/` directory is allowed. Beneath a listed directory, anything goes.
 
 ```layout
 CONTRACT.md
@@ -39,6 +40,8 @@ container.go
 aliases.go
 annotation.go
 conclude.go
+finish.go
+run_state.go
 define.go
 host_observe.go
 host_task.go
@@ -83,45 +86,47 @@ docs/decisions/
 One file per contract section; the file holds that section's exported
 surface plus the composition root, and nothing else. The composition root is
 the `Run` aggregate (handles to graph, record, change, freshness, misuse and
-project), its one constructor `openRun` and the signal seam in `run.go`;
+project), its constructors `openRun` and `newRun` and the signal seam in `run.go`, with the per-node render state in `run_state.go`;
 `Config` resolved once into the private `config` in `config.go`; the env
 seam in `output.go`; the `graph.Host`, `freshness.Narration` and
-`change.Engine` adapter in `host.go`; Finish sequencing in `ending.go`; and
+`change.Engine` adapter in `host.go`; Finish sequencing in `finish.go`; and
 facade wiring in `facades.go`. Root writes no record truth and imports no
 system package, except `os` for the `os.Signal` type `CleanStop` names.
 
-| File              | Contract | Owns                                                                          |
-| ----------------- | -------- | ----------------------------------------------------------------------------- |
-| `evo.go`          | thesis   | package doc only                                                              |
-| `run.go`          | §1       | `Main`, `Execute`, `RunFunc`, the one constructor `openRun`, the signal seam  |
-| `aliases.go`      | §1       | the private aliases of `record` and `project` names the root uses             |
-| `conclude.go`     | §1       | how a run ends: `concludeRun` and its interrupt, cancel and exit variants     |
-| `identity.go`     | §1       | the program name a run falls back to when `Config.Name` is empty              |
-| `misuse.go`       | §1       | the root's recording of misuse into `internal/misuse`                         |
-| `annotation.go`   | §1       | `Run.Fact`, run-scoped warnings, the configured redactor                      |
-| `config.go`       | §1       | `Config`, `State`, and their resolution into the private `config`             |
-| `result.go`       | §1       | `Result`, `Conclusion`, `Run.ResultWriter`                                    |
-| `host.go`         | §1       | the adapter graph, freshness and change call the `Run` through                |
-| `host_task.go`    | §1       | the host callbacks for task and container declaration, start and settlement   |
-| `host_observe.go` | §1       | the host callbacks that narrate definition, evidence, basis and observation   |
-| `facades.go`      | §1       | `Facades`, `Clock`, `Terminal`, `Redactor`, `Process`, `FS`                   |
-| `task.go`         | §2       | `Task` and its resolve, annotate and phase methods                            |
-| `define.go`       | §2       | `Verify`, `Define`, `DefineOption`, `CleanStop`                               |
-| `predecessor.go`  | §2       | `Predecessor`, `Task.After`, predecessor resolution                           |
-| `container.go`    | §2       | `Group`, `Sequence`, `Container`, `After`, `Build`                            |
-| `compute.go`      | §2       | `Compute`, `Computed`                                                         |
-| `file.go`         | §3       | `File`, `FileSpec`                                                            |
-| `exec.go`         | §3       | `Exec`, `ExecSpec`, `ExecResult`                                              |
-| `patch.go`        | §3       | `Patch`                                                                       |
-| `effect.go`       | §3       | `Effect`, `EffectSpec`, `Verb`, `Create`, `Update`, `Delete`, `PartialEffect` |
-| `report.go`       | §2       | `Run.Summary`, `Task.Progress`, `Task.Writer`                                 |
-| `text.go`         | §2       | `Run.Text`, the visibility-scoped printer, message projection                 |
-| `logging.go`      | §6       | `Run.SlogHandler`, log levels, the debug-record journal                       |
-| `problem.go`      | §4       | `Problem` method, `ProblemOption`, `Detail`, `Code`, `On`, `Next`, `Action`   |
-| `ending.go`       | §4       | `Fail`, `Refuse`, `Exclude`, `Outcome` and its constants                      |
-| `confirm.go`      | §5       | `Confirm`, `Suspend`, `ConfirmOption`, `Destructive`, `NonInteractive`        |
-| `output.go`       | §6       | `Output` and its constants, environment                                       |
-| `errors.go`       | §7       | every exported `Err` sentinel `CONTRACT.md` lists                             |
+| File              | Contract | Owns                                                                                    |
+| ----------------- | -------- | --------------------------------------------------------------------------------------- |
+| `evo.go`          | thesis   | package doc only                                                                        |
+| `run.go`          | §1       | `Main`, `Execute`, `RunFunc`, the `Run` aggregate, `openRun`, `newRun`, the signal seam |
+| `run_state.go`    | §1       | `taskState`, `tasksState`, the presenter host, `snapshotLocked`, wire events            |
+| `aliases.go`      | §1       | the private aliases of `record` and `project` names the root uses                       |
+| `conclude.go`     | §1       | how a run ends: `concludeRun` and its interrupt, cancel and exit variants               |
+| `finish.go`       | §1       | Finish sequencing: validate, settle undefined Tasks, conclude, residual write           |
+| `identity.go`     | §1       | the program name a run falls back to when `Config.Name` is empty                        |
+| `misuse.go`       | §1       | the root's recording of misuse into `internal/misuse`                                   |
+| `annotation.go`   | §1       | `Run.Fact`, run-scoped warnings, the configured redactor                                |
+| `config.go`       | §1       | `Config`, `State`, and their resolution into the private `config`                       |
+| `result.go`       | §1       | `Result`, `Conclusion`, `Run.ResultWriter`                                              |
+| `host.go`         | §1       | the adapter graph, freshness and change call the `Run` through                          |
+| `host_task.go`    | §1       | the host callbacks for task and container declaration, start and settlement             |
+| `host_observe.go` | §1       | the host callbacks that narrate definition, evidence, basis and observation             |
+| `facades.go`      | §1       | `Facades`, `Clock`, `Terminal`, `Redactor`, `Process`, `FS`                             |
+| `task.go`         | §2       | `Task` and its resolve, annotate and phase methods                                      |
+| `define.go`       | §2       | `Verify`, `Define`, `DefineOption`, `CleanStop`                                         |
+| `predecessor.go`  | §2       | `Predecessor`, `Task.After`, predecessor resolution                                     |
+| `container.go`    | §2       | `Group`, `Sequence`, `Container`, `After`, `Build`                                      |
+| `compute.go`      | §2       | `Compute`, `Computed`                                                                   |
+| `file.go`         | §3       | `File`, `FileSpec`                                                                      |
+| `exec.go`         | §3       | `Exec`, `ExecSpec`, `ExecResult`                                                        |
+| `patch.go`        | §3       | `Patch`                                                                                 |
+| `effect.go`       | §3       | `Effect`, `EffectSpec`, `Verb`, `Create`, `Update`, `Delete`, `PartialEffect`           |
+| `report.go`       | §2       | `Run.Summary`, `Task.Progress`, `Task.Writer`                                           |
+| `text.go`         | §2       | `Run.Text`, the visibility-scoped printer, message projection                           |
+| `logging.go`      | §6       | `Run.SlogHandler`, log levels, the debug-record journal                                 |
+| `problem.go`      | §4       | `Problem` method, `ProblemOption`, `Detail`, `Code`, `On`, `Next`, `Action`             |
+| `ending.go`       | §4       | `Fail`, `Refuse`, `Exclude`, `Outcome` and its constants                                |
+| `confirm.go`      | §5       | `Confirm`, `Suspend`, `ConfirmOption`, `Destructive`, `NonInteractive`                  |
+| `output.go`       | §6       | `Output` and its constants, environment                                                 |
+| `errors.go`       | §7       | every exported `Err` sentinel `CONTRACT.md` lists                                       |
 
 ## Internal packages
 

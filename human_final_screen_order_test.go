@@ -283,3 +283,51 @@ func TestHumanFinalScreenMatchesPlainDurableOrder(t *testing.T) {
 		})
 	}
 }
+
+// declareUndefinedAfterGroup is one program for both renderers: a Task nobody
+// Defined (the run's misuse line) declared after a Group.
+func declareUndefinedAfterGroup(out *Run) {
+	g := out.Group("g")
+	g.Task("g1").Define(pause(0))
+	out.Task("ghost")
+}
+
+// misuseLineIndex is the position of the misuse line among the non-blank
+// lines of text, and the number of such lines.
+func misuseLineIndex(text string) (at, lines int) {
+	at = -1
+	for line := range strings.SplitSeq(text, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "!  ") && strings.Contains(line, "ghost") {
+			at = lines
+		}
+		lines++
+	}
+	return at, lines
+}
+
+// TestHumanFinalScreenPlacesRunMisuseLikePlain pins CONTRACT's single Finish
+// order: the Human final screen writes a run-level misuse line where Plain
+// does, after every collection and above the band, not under the first row.
+func TestHumanFinalScreenPlacesRunMisuseLikePlain(t *testing.T) {
+	plain, _ := runPlain(t, Config{}, declareUndefinedAfterGroup)
+
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Clock: testkit.NewClock()}},
+		tuning{visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000})
+	declareUndefinedAfterGroup(out)
+	_ = out.close()
+
+	human := screen.PersistedText()
+	pAt, pLines := misuseLineIndex(plain)
+	hAt, hLines := misuseLineIndex(human)
+	if pAt < 0 || hAt < 0 {
+		t.Fatalf("misuse line missing (plain %d, human %d)\n--- human ---\n%s\n--- plain ---\n%s", pAt, hAt, human, plain)
+	}
+	if pLines-pAt != hLines-hAt {
+		t.Fatalf("Human places the misuse line %d lines from the end, Plain %d\n--- human ---\n%s\n--- plain ---\n%s",
+			hLines-hAt, pLines-pAt, human, plain)
+	}
+}

@@ -126,6 +126,10 @@ func (d *removedTwoZeroDetector) inspectPackageCall(call *ast.CallExpr, name str
 	case name == "NextCommand":
 		d.report(call, "evo.NextCommand was removed in 2.0; a next step is evo.Next(evo.Action{Command: ...})",
 			"replace "+d.nodeSrc(call)+" with "+d.nextAction(call))
+	case name == "Skipped":
+		d.reportPackageSkipped(call)
+	case name == "Fail" && d.isPrintfFail(call):
+		d.reportPrintfFail(call)
 	case name == "Run" && len(call.Args) == 2:
 		d.reportExecuteCall(call, d.pkg+".Run")
 	case runMethods[name]:

@@ -47,6 +47,7 @@
     "facts": [],
     "problems": [],
     "effects": [],
-    "actions": []
+    "actions": [],
+    "misuse": []
   }
 }

@@ -3,6 +3,7 @@ package review
 import (
 	"go/ast"
 	"go/token"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -93,4 +94,40 @@ func (d *removedTwoZeroDetector) valueText(v ast.Expr) string {
 	}
 	d.need("fmt")
 	return "fmt.Sprint(" + d.nodeSrc(v) + ")"
+}
+
+// migratedSrc is n as written, with each Basis field of the ExecSpec and
+// FileSpec literals inside it spelled as 2.0 does, so a rewrite that copies
+// the call does not carry a field the same review reports as removed.
+func (d *removedTwoZeroDetector) migratedSrc(n ast.Node) string {
+	span := d.nodeSpan(n)
+	type edit struct {
+		span srcSpan
+		text string
+	}
+	var edits []edit
+	ast.Inspect(n, func(n ast.Node) bool {
+		cl, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+		for _, spec := range basisSpecs {
+			if !isEvoSpecLit(cl, d.pkg, spec) {
+				continue
+			}
+			for _, elt := range cl.Elts {
+				if kv, ok := elt.(*ast.KeyValueExpr); ok && identName(kv.Key) == "Basis" {
+					if fields, ok := d.basisFields(kv.Value); ok {
+						edits = append(edits, edit{d.nodeSpan(kv), fields})
+					}
+				}
+			}
+		}
+		return true
+	})
+	out := d.src[span.start:span.end]
+	for _, e := range slices.Backward(edits) {
+		out = out[:e.span.start-span.start] + e.text + out[e.span.end-span.start:]
+	}
+	return out
 }

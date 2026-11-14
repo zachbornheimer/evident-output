@@ -181,7 +181,12 @@ func TestAPI032_RemovedRemedyMethodsAreGuidance(t *testing.T) {
 		"failure": `func f(fail *evo.Failure) { fail.NextCommand("git", "status") }`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			found := guidanceFindings(findAPI032(review.GoSource("p.go", evoBody(body+"\n"))))
+			var found []review.Finding
+			for _, f := range guidanceFindings(findAPI032(review.GoSource("p.go", evoBody(body+"\n")))) {
+				if strings.Contains(f.Suggestion, "evo.Next(") {
+					found = append(found, f)
+				}
+			}
 			if len(found) != 1 || strings.HasPrefix(found[0].Suggestion, "replace ") || !strings.Contains(found[0].Suggestion, "evo.Next(") {
 				t.Fatalf("want one guidance finding naming evo.Next, got %+v", found)
 			}

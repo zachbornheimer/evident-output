@@ -139,8 +139,11 @@ Satisfied and the callback never runs; false after a successful callback
 fails the Task. A Failed, Refused, Excluded or Cancelled predecessor leaves
 its dependents NotStarted. A NotStarted Task's summary names the Task at the
 root of its chain of predecessors, in that Task's state, whether a Group it ran
-After got its members from `Build` or declared them directly. `After(group)` and `After(sequence)` wait on the container's own
-outcome, which folds an Excluded member into success, so only a direct
+After got its members from `Build` or declared them directly. `After(group)` and `After(sequence)` wait for the members the container held
+when `After` was called and never consult the container's own later outcome, so
+a member declared afterward that fails leaves the container Failed and the
+dependent still runs; a container whose `Build` was refused counts as a Failed
+predecessor. An Excluded member counts as success there, so only a direct
 `After(task)` on an Excluded Task leaves its dependent NotStarted. `Get` is valid only from work ordered after the
 producer by Sequence position or `After`; an unordered `Get` fails the run
 with `ErrComputedUnordered` in every mode. A goroutine a callback started is
@@ -157,9 +160,7 @@ through it is not caught either.
 callback, so a value would exist only when the world says so. A `Build` runs
 once when its container becomes eligible, declares topology only, and closes
 the container's declaration phase; declaring work from inside a Task's
-callback is misuse. Members declared before a `Build` callback exits through `runtime.Goexit` or panics still run. A signal named in `CleanStop`, arriving while that Task
-runs, cancels only that Task's context and ends it Succeeded; it does not
-cancel the run, so a run with nothing else left exits 0. A signal it does not
+callback is misuse. Members declared before a `Build` callback exits through `runtime.Goexit` or panics still run. Main subscribes each signal named in `CleanStop` for exactly the time a callback naming it runs, and that signal, arriving then, cancels only that Task's context and ends it Succeeded without cancelling the run, so a run with nothing else left exits 0; `CleanStop` under `Execute` is refused at `Define` with `ErrInvalidConfig`, because the host owns signals there. A signal it does not
 name still cancels the run.
 
 | Symbol              | Kind   | Meaning                                                                                                                |
@@ -421,7 +422,7 @@ r.Task("report").After(link).Define(func(ctx context.Context) error {
 })
 ```
 
-Environment, applied only where `Config` is zero:
+Environment, applied only where the matching `Config` field is zero:
 
 | Variable    | Values                            | Effect                                                                                          |
 | ----------- | --------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -429,7 +430,7 @@ Environment, applied only where `Config` is zero:
 | EVO_VERBOSE | `1`                               | same as `Config.Verbose`                                                                        |
 | EVO_DEBUG   | `debug`, `info`, `warn`, `error`  | the lowest `slog.Level` the journal keeps when `Config.Debug` is nil; a named level beats it    |
 | NO_COLOR    | any non-empty value               | no color; wins over `FORCE_COLOR`                                                               |
-| FORCE_COLOR | any value except empty and `0`    | color in Human even when stdout is not a terminal                                               |
+| FORCE_COLOR | any value except empty and `0`    | color in Human and Plain even when stderr is not a terminal                                     |
 | LC_ALL      | a locale name                     | glyph selection on a live terminal; the first non-empty of `LC_ALL`, `LC_CTYPE`, `LANG` decides |
 | LC_CTYPE    | a locale name                     | the same lookup, consulted when `LC_ALL` is empty                                               |
 | LANG        | a locale name                     | the same lookup, consulted when `LC_ALL` and `LC_CTYPE` are empty                               |
@@ -456,8 +457,7 @@ no gap, so a missing number means a lost line.
 | `ErrInvalidConfig`     | a declaration or spec Evo refuses              |
 
 Every declaration or spec Evo refuses is refused one way: the error wraps
-`ErrInvalidConfig`, is joined into `Result.Err`, and `Conclusion.Explanation`
-states what was refused. That covers a duplicate sibling name, a Task, Group or Sequence
+`ErrInvalidConfig`, is joined into `Result.Err`. `Conclusion.Explanation` names a refusal only when that refusal is the deciding ending (section 1). Every refusal is a record of its own: a misuse entry in `evo.run` and a `run.misuse` event in JSONL, whatever ended the run. That covers a duplicate sibling name, a Task, Group or Sequence
 declared from inside a `Define` callback, a nil `Define` callback, a Task still undefined at Finish, a `Define` that
 arrives after the run body returned (from a callback or any goroutine, whether or not a Task waits After the
 Task it names; the Task ends NotStarted, and a Build may still Define), `Compute` on

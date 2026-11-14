@@ -109,7 +109,7 @@ func ExamplePredecessor() {
 func ExampleDefineOption() {
 	var out bytes.Buffer
 	opts := []evo.DefineOption{evo.CleanStop(syscall.SIGTERM)}
-	evo.Execute(context.Background(), quietRun(&out), func(ctx context.Context, r *evo.Run) error {
+	evo.Main(quietRun(&out), func(ctx context.Context, r *evo.Run) error {
 		r.Task("serve").Define(func(context.Context) error { return nil }, opts...)
 		return nil
 	})
@@ -131,7 +131,7 @@ func ExampleCleanStop() {
 		}
 		return nil
 	}
-	evo.Execute(context.Background(), quietRun(&out), func(ctx context.Context, r *evo.Run) error {
+	evo.Main(quietRun(&out), func(ctx context.Context, r *evo.Run) error {
 		r.Task("serve").Define(serve, evo.CleanStop(os.Interrupt, syscall.SIGTERM))
 		return nil
 	})

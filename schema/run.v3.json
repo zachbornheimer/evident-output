@@ -124,6 +124,12 @@
           },
           "type": "array"
         },
+        "misuse": {
+          "items": {
+            "$ref": "#/$defs/misuse"
+          },
+          "type": "array"
+        },
         "problems": {
           "items": {
             "$ref": "#/$defs/problem"
@@ -143,7 +149,8 @@
         "facts",
         "problems",
         "effects",
-        "actions"
+        "actions",
+        "misuse"
       ],
       "type": "object"
     },
@@ -233,6 +240,24 @@
       },
       "required": [
         "path"
+      ],
+      "type": "object"
+    },
+    "misuse": {
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "remedy": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message",
+        "remedy"
       ],
       "type": "object"
     },

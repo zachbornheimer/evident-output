@@ -57,7 +57,7 @@
   {
     "id": "C46-004",
     "section": "2.0 \u00a76 Output",
-    "quote": "Environment, applied only where `Config` is zero:",
+    "quote": "Environment, applied only where the matching `Config` field is zero:",
     "tier": "1.1",
     "tests": [
       {

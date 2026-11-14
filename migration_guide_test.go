@@ -25,8 +25,9 @@ var backtickedName = regexp.MustCompile("`([A-Z][A-Za-z0-9]*)`")
 // qualifiedConfigField matches Config.Field in a table cell.
 var qualifiedConfigField = regexp.MustCompile(`\bConfig\.[A-Za-z][A-Za-z0-9]*`)
 
-// identifier matches one Go identifier inside a table cell.
-var identifier = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+// backtickedSymbol matches one whole code-ticked symbol inside a table cell,
+// such as `Strict` or `Config.Strict`.
+var backtickedSymbol = regexp.MustCompile("`([A-Za-z_][A-Za-z0-9_.]*)`")
 
 // TestMigrationGuideMapsEveryRemovedName fails when a name that 2.0 removed
 // -- listed as removed by CHANGELOG.md, or exported by v1.2.0-alpha.1 and
@@ -86,6 +87,25 @@ func TestChangelogRemovedNamesAreNotContractNames(t *testing.T) {
 	}
 }
 
+// TestMigrationGuideRemovedNamesAreNotContractNames fails when the first
+// (1.x) cell of a row of docs/migration/2.0.md names a symbol CONTRACT.md
+// declares, which would tell a consumer a live name was removed.
+func TestMigrationGuideRemovedNamesAreNotContractNames(t *testing.T) {
+	contract := contractSymbols(t, "CONTRACT.md")
+
+	var live []string
+	for name := range migrationGuideBareNames(t) {
+		if contract[name] {
+			live = append(live, name)
+		}
+	}
+	sort.Strings(live)
+	if len(live) > 0 {
+		t.Errorf("%s lists %d names in a 1.x cell that CONTRACT.md declares:\n  %s",
+			migrationGuidePath, len(live), strings.Join(live, "\n  "))
+	}
+}
+
 // alphaExportsAbsentFromContract is every name v1.2.0-alpha.1 exported at the
 // top level that CONTRACT.md does not declare at the top level; a name 2.0
 // keeps only as a method or field (Confirm, now Run.Confirm) counts as absent.
@@ -136,9 +156,44 @@ func changelogRemovedNames(t *testing.T) map[string]bool {
 	return names
 }
 
-// migrationGuideNames is every identifier in the first cell of a table row
-// of the migration guide.
+// migrationGuideNames is every whole backticked symbol in the first cell of
+// a table row of the migration guide. `Config.Strict` does not map `Strict`.
 func migrationGuideNames(t *testing.T) map[string]bool {
+	t.Helper()
+	body, err := os.ReadFile(migrationGuidePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", migrationGuidePath, err)
+	}
+	return firstCellSymbols(string(body))
+}
+
+func firstCellSymbols(guide string) map[string]bool {
+	names := map[string]bool{}
+	for line := range strings.SplitSeq(guide, "\n") {
+		if !strings.HasPrefix(line, "|") {
+			continue
+		}
+		firstCell, _, _ := strings.Cut(strings.TrimPrefix(line, "|"), "|")
+		for _, m := range backtickedSymbol.FindAllStringSubmatch(firstCell, -1) {
+			names[m[1]] = true
+		}
+	}
+	return names
+}
+
+// TestMigrationGuideMatchesWholeSymbols fails when a guide whose bare `Strict`
+// row is deleted still counts Strict as mapped because `Config.Strict` names it.
+func TestMigrationGuideMatchesWholeSymbols(t *testing.T) {
+	guide := "| `Config.Strict` | none |\n| `Other` | x |\n"
+	if names := firstCellSymbols(guide); names["Strict"] || !names["Config.Strict"] || !names["Other"] {
+		t.Errorf("first-cell symbols = %v, want whole symbols only", names)
+	}
+}
+
+// migrationGuideBareNames is every first-cell code span of the migration
+// guide that is a lone exported name (`Plain`), not a qualified or called one
+// (`Config.Plain`, `Output.Task(`), which refer to a member or a 1.x form.
+func migrationGuideBareNames(t *testing.T) map[string]bool {
 	t.Helper()
 	body, err := os.ReadFile(migrationGuidePath)
 	if err != nil {
@@ -150,8 +205,8 @@ func migrationGuideNames(t *testing.T) map[string]bool {
 			continue
 		}
 		firstCell, _, _ := strings.Cut(strings.TrimPrefix(line, "|"), "|")
-		for _, id := range identifier.FindAllString(firstCell, -1) {
-			names[id] = true
+		for _, m := range backtickedName.FindAllStringSubmatch(firstCell, -1) {
+			names[m[1]] = true
 		}
 	}
 	return names

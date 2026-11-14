@@ -86,7 +86,7 @@ func (r *Run) run(ctx context.Context, run RunFunc) Result {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return runInterruptible(ctx, r, run)
+	return runSignalled(ctx, r, run)
 }
 
 // initRun builds a Run through the one constructor Execute and Main use, with t's settings when given.
@@ -701,3 +701,6 @@ var (
 	errDeclaredInCallback   = misuse.ErrDeclaredInCallback
 	errDuplicateSiblingName = misuse.ErrDuplicateSiblingName
 )
+
+// interrupt stops the run as a user signal would.
+func (r *Run) interrupt(reason string) { r.interruptBecause(cancelCauseUser, reason) }

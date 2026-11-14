@@ -83,8 +83,7 @@ func (e runHost) Disowned(t *graph.Task) {
 	}
 }
 
-// Settled writes the settled Task where readers find it. Only a Done Task commits its manifest record
-// (spec §8.2/§11.3).
+// Settled writes the settled Task where readers find it. Only a Done Task commits its manifest record.
 func (e runHost) Settled(t *graph.Task) {
 	st := e.out.fileSettledLocked(t)
 	if st != nil && t.Rec.State().Succeeded() {

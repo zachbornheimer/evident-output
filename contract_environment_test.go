@@ -151,3 +151,41 @@ func testColorEnvironment(t *testing.T) {
 		})
 	}
 }
+
+// TestContractEnvironmentForceColorSentence pins the FORCE_COLOR row of
+// CONTRACT.md §6 to the behaviour: the check is on stderr, and it colors
+// Plain as well as Human.
+func TestContractEnvironmentForceColorSentence(t *testing.T) {
+	body, err := os.ReadFile("CONTRACT.md")
+	if err != nil {
+		t.Fatalf("read CONTRACT.md: %v", err)
+	}
+	const sentence = "color in Human and Plain even when stderr is not a terminal"
+	if got := strings.Count(string(body), sentence); got != 1 {
+		t.Errorf("CONTRACT.md has the FORCE_COLOR sentence %d times, want 1", got)
+	}
+	withEnvironment(t, map[string]string{"FORCE_COLOR": "1"})
+	run := executeContract(context.Background(), t, evo.Config{Output: evo.Plain}, scanWithFact)
+	if !strings.Contains(run.Text(), ansiEscape) {
+		t.Errorf("FORCE_COLOR=1 Plain output has no color:\n%q", run.Text())
+	}
+}
+
+// TestContractEnvironmentAppliesPerField pins the sentence above the §6 table:
+// the environment yields per field, so one set Config field does not disable
+// another variable.
+func TestContractEnvironmentAppliesPerField(t *testing.T) {
+	body, err := os.ReadFile("CONTRACT.md")
+	if err != nil {
+		t.Fatalf("read CONTRACT.md: %v", err)
+	}
+	const sentence = "applied only where the matching `Config` field is zero"
+	if got := strings.Count(string(body), sentence); got != 1 {
+		t.Errorf("CONTRACT.md has the per-field sentence %d times, want 1", got)
+	}
+	withEnvironment(t, map[string]string{"EVO_OUTPUT": "json"})
+	run := executeContract(context.Background(), t, evo.Config{Verbose: true}, scanWithFact)
+	if !isRunDocument(run.Stdout) {
+		t.Errorf("Config.Verbose set disabled EVO_OUTPUT=json; stdout:\n%s", run.Stdout)
+	}
+}
